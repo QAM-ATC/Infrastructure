@@ -1,5 +1,9 @@
 infrastructure/bitmex_api.txt
 infrastructure/logs
+infrastructure/__pycache__/
+
 .ipynb_checkpoints
 .DS_Store
-.idea
+.idea/
+
+*.pyc

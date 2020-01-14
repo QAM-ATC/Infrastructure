@@ -18,9 +18,9 @@ class Event(ABC):
 @dataclass
 class DataEvent(Event):
     __slots__ = "event_time", "table_name", "data"
-    event_time : pd.Timestamp
-    table_name : str
-    data : pd.Series
+    event_time: pd.Timestamp
+    table_name: str
+    data: pd.Series
 
     def __post_init__(self):
         self.type = "DATA"
@@ -29,7 +29,7 @@ class DataEvent(Event):
 @dataclass
 class FillEvent(Event):
     __slots__ = "event_time", "symbol", "exchange", "quantity", "cost"
-    event_time : pd.Timestamp
+    event_time: pd.Timestamp
     symbol: str
     exchange: str
     quantity: int  # change in securities held
@@ -58,5 +58,5 @@ class Order:
     order_type: str  # MKT/LMT
     direction: str  # BUY/SELL
     quantity: int
-    price: float  # only relevent to LMT
+    price: float  # only relevant to LMT
 

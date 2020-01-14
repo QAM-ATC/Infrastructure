@@ -1,3 +1,6 @@
+import pandas as pd
+from abc import ABC, abstractmethod
+
 class Portfolio(ABC):
     @abstractmethod
     def update_fill(self):
@@ -50,7 +53,7 @@ class BacktestPortfolio(Portfolio):
         
     def risk_check(self):
         return True
-    
+
     def calculate_order_price(self, order_type):
         # relevant to limit orders
         if order_type == "MKT":
@@ -60,7 +63,7 @@ class BacktestPortfolio(Portfolio):
     def send_order_from_signal(self, sig):
         order_type = "MKT"
         if sig.signal_type == "EXIT":
-            if self.current_positions[signal.symbol] < 0:
+            if self.current_positions[sig.symbol] < 0:
                 direction = "BUY"
             else:
                 direction = "SELL"
@@ -74,17 +77,17 @@ class BacktestPortfolio(Portfolio):
             self.generate_fill_from_order(
                 Order(sig.symbol, sig.exchange, order_type, direction, quantity, price)
             )
-    
+
     def calculate_fill_cost(self, order):
         fill_price = 7000  # will eventually use future data
         return order.quantity * fill_price
 
     def calculate_fill_quantity(self, order):
         return order.quantity  # assumes 100% fill
-    
+
     def calculate_latency(self, order):
         return pd.Timedelta("3s")
-    
+
     def generate_fill_from_order(self, order):
         event_time = self.queue.current_time + self.calculate_latency(order)
         quantity = self.calculate_fill_quantity(order)
