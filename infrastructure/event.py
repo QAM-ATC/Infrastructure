@@ -50,7 +50,7 @@ class Signal:
     symbol: str
     exchange: str
     signal_type: str  # BUY/SELL/EXIT
-    strength: float
+    strength: float  # 0 to 1
 
 
 @dataclass

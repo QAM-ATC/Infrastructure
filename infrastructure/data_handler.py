@@ -9,7 +9,7 @@ class DataHandler:
             all_data (dict): {symbol: {table_name: pd.DataFrame}}
             start_time (pd.Timestamp):
         """
-        self.lookahead_data = all_data
+        self.lookahead = all_data
         self.past_data_dict = self.split_past_data(all_data, start_time)  # dict of lists of series
         self.symbol_list = list(self.past_data_dict.keys())
 
