@@ -56,15 +56,9 @@ class BacktestPortfolio(Portfolio):
     def risk_check(self):
         return True
 
-    def calculate_order_price(self, order_type):
-        # relevant to limit orders
-        if order_type == "MKT":
-            return 0.0
-        return 0.0
-    
     def send_order_from_signal(self, signal):
         latency_start = pd.Timestamp.utcnow()
-        order_type = "MKT"
+        order_type = "MKT"  # currently MKT orders only
         if signal.signal_type == "EXIT":
             if self.current_positions[signal.symbol] < 0:
                 direction = "BUY"
@@ -78,16 +72,19 @@ class BacktestPortfolio(Portfolio):
         
         if self.risk_check():
             order = Order(signal.symbol, signal.exchange, order_type, direction, quantity, price)
-            latency = pd.Timestamp.utcnow() - latency_start
-            send_time = self.queue.current_time
+            send_time = self.queue.current_time + pd.Timestamp.utcnow() - latency_start
             self.generate_fill_from_order(order, send_time)
 
-    def calculate_fill_cost(self, order, fill_time):  # MKT orders
-        # TODO: use self.data_handler.lookahead[order.symbol]["QUOTES"]
-        df = self.data_handler.lookahead[order.symbol]["QUOTES"].loc[fill_time:]
-        print(df)
-        fill_price = 7000
-        return order.quantity * fill_price
+    def calculate_fill_cost(self, order, fill_time):
+        quotes = self.data_handler.lookahead[order.symbol]["QUOTES"].loc[fill_time:].iloc[0]
+        if order.order_type == "MKT":
+            if order.direction == "BUY":
+                fill_price = quotes["askPrice"]
+            else:
+                fill_price = quotes["bidPrice"]
+            return order.quantity * fill_price
+        else:
+            return order.price
 
     def calculate_fill_quantity(self, order, fill_time):
         # for non-market orders
@@ -177,3 +174,4 @@ if __name__ == "__main__":
         print(event)
 
     # check_send_order_from_signal(port, eq)
+
