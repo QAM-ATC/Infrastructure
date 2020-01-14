@@ -7,6 +7,7 @@ from itertools import islice
 from event_queue import EventQueue
 from data_handler import DataHandler
 from strategy import DollarWeightedMACD
+from portfolio import BacktestPortfolio
 
 def read_trades_csv(trades_csv_path):
     df = pd.read_csv(
@@ -41,6 +42,7 @@ def main():
     batch_size = 1
     future_data_generator = simulate_future_data(future_data, batch_size)
     event_queue = EventQueue(start_time)
+    portfolio = BacktestPortfolio()
     strat = DollarWeightedMACD(data_handler.read_table("df_table"))
 
     empty_future_data = False

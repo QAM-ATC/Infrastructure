@@ -7,18 +7,21 @@ from dataclasses import dataclass
 @total_ordering
 class Event(ABC):
     def __post_init__(self):
-        assert type(self.event_time) == pd.Timestamp,\
-        "pd.Timestamp event_time required"
+        assert type(self.event_time) == pd.Timestamp, \
+            "pd.Timestamp event_time required"
+
     def __eq__(self, other):
         return self.event_time == other.event_time
+
     def __lt__(self, other):
         return self.event_time < other.event_time
 
 
 @dataclass
 class DataEvent(Event):
-    __slots__ = "event_time", "table_name", "data"
+    __slots__ = "event_time", "symbol", "table_name", "data"
     event_time: pd.Timestamp
+    symbol: str
     table_name: str
     data: pd.Series
 
@@ -34,7 +37,7 @@ class FillEvent(Event):
     exchange: str
     quantity: int  # change in securities held
     cost: float  # change in cash held
-        
+
     @property
     def commission(self):
         # will eventually contain exchange/broker-specific logic
@@ -59,4 +62,3 @@ class Order:
     direction: str  # BUY/SELL
     quantity: int
     price: float  # only relevant to LMT
-

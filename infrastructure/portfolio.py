@@ -1,17 +1,16 @@
-import pandas as pd
 from abc import ABC, abstractmethod
 
 class Portfolio(ABC):
     @abstractmethod
     def update_fill(self):
         pass
-    
+
     @abstractmethod
     def send_order_from_signal(self):
         pass
     
 class BacktestPortfolio(Portfolio):
-    def __init__(self, queue, symbol_list, all_data, initial_capital=10000.0):
+    def __init__(self, queue, data_handler, initial_capital=10000.0):
         self.queue = queue  # event queue
         self.symbol_list = symbol_list 
         self.initial_capital = initial_capital
@@ -60,23 +59,23 @@ class BacktestPortfolio(Portfolio):
             return 0.0
         return 0.0
     
-    def send_order_from_signal(self, sig):
+    def send_order_from_signal(self, signal):
         order_type = "MKT"
-        if sig.signal_type == "EXIT":
-            if self.current_positions[sig.symbol] < 0:
+        if signal.signal_type == "EXIT":
+            if self.current_positions[signal.symbol] < 0:
                 direction = "BUY"
             else:
                 direction = "SELL"
         else:
-            direction = sig.signal_type
+            direction = signal.signal_type
             
-        quantity = int(10 * sig.strength)
+        quantity = int(10 * signal.strength)
         price = self.calculate_order_price(order_type)
         
         if self.risk_check():
-            self.generate_fill_from_order(
-                Order(sig.symbol, sig.exchange, order_type, direction, quantity, price)
-            )
+            order = Order(signal.symbol, signal.exchange, order_type, direction, quantity, price)
+            return order
+        self.generate_fill_from_order()
 
     def calculate_fill_cost(self, order):
         fill_price = 7000  # will eventually use future data
@@ -95,3 +94,36 @@ class BacktestPortfolio(Portfolio):
         
         fill = FillEvent(event_time, order.symbol, order.exchange, quantity, cost)
         self.queue.put(fill)
+
+
+if __name__ == "__main__":
+    import pandas as pd
+    from event import DataEvent, FillEvent, Order, Signal
+    from event_queue import EventQueue
+
+    def read_trades_csv(trades_csv_path):
+        df = pd.read_csv(
+            trades_csv_path,
+            usecols=[
+                "received",
+                "size",
+                "price"
+            ],
+            parse_dates=["received"],
+            index_col="received",
+            nrows=30000
+        )
+        return df
+
+
+    trades_csv_path = "play_data/XBTUSD_trades_191214_0434.csv"
+    df = read_trades_csv(trades_csv_path)
+    print(df)
+
+    symbol_list = ["XBTUSD"]
+    start_time = df.index[1500]
+    print(start_time)
+
+    eq = EventQueue(start_time)
+    port = BacktestPortfolio(eq, symbol_list)
+
