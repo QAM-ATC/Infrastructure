@@ -1,5 +1,10 @@
+import pandas as pd
+
 from abc import ABC, abstractmethod
 
+from event import FillEvent, Order
+from event_queue import EventQueue
+from data_handler import DataHandler
 
 class ExecutionHandler(ABC):
     @abstractmethod
@@ -43,12 +48,6 @@ class BacktestExecutionHandler(ExecutionHandler):
 
 
 if __name__ == "__main__":
-    import pandas as pd
-
-    from event import FillEvent, Order
-    from event_queue import EventQueue
-    from data_handler import DataHandler
-
     def read_trades_csv(trades_csv_path):
         df = pd.read_csv(
             trades_csv_path,

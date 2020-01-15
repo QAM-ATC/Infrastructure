@@ -1,18 +1,28 @@
+import pandas as pd
+
 from abc import ABC, abstractmethod
+
+from event import DataEvent, FillEvent, Order, Signal
+from event_queue import EventQueue
+from data_handler import DataHandler
+from execution_handler import BacktestExecutionHandler
+
 
 class Portfolio(ABC):
     @abstractmethod
-    def update_fill(self):
+    def update_fill(self, fill_event):
         pass
 
     @abstractmethod
-    def send_order_from_signal(self):
+    def send_order_from_signal(self, signal):
         pass
 
+
 class BacktestPortfolio(Portfolio):
-    def __init__(self, queue, data_handler, initial_capital=10000.0):
+    def __init__(self, queue, data_handler, execution_handler, initial_capital=10000.0):
         self.queue = queue  # event queue
         self.data_handler = data_handler
+        self.execution_handler = execution_handler
         self.symbol_list = data_handler.symbol_list
 
         self.all_positions_list = [pd.Series(0, index=self.symbol_list, name=queue.current_time)]  # list of series
@@ -59,6 +69,7 @@ class BacktestPortfolio(Portfolio):
     def send_order_from_signal(self, signal):
         latency_start = pd.Timestamp.utcnow()
         order_type = "MKT"  # currently MKT orders only
+
         if signal.signal_type == "EXIT":
             if self.current_positions[signal.symbol] < 0:
                 direction = "BUY"
@@ -72,42 +83,11 @@ class BacktestPortfolio(Portfolio):
         
         if self.risk_check():
             order = Order(signal.symbol, signal.exchange, order_type, direction, quantity, price)
-            send_time = self.queue.current_time + pd.Timestamp.utcnow() - latency_start
-            self.generate_fill_from_order(order, send_time)
-
-    def calculate_fill_cost(self, order, fill_time):
-        quotes = self.data_handler.lookahead[order.symbol]["QUOTES"].loc[fill_time:].iloc[0]
-        if order.order_type == "MKT":
-            if order.direction == "BUY":
-                fill_price = quotes["askPrice"]
-            else:
-                fill_price = quotes["bidPrice"]
-            return order.quantity * fill_price
-        else:
-            return order.price
-
-    def calculate_fill_quantity(self, order, fill_time):
-        # for non-market orders
-        return order.quantity
-
-    def calculate_latency(self, order, send_time):
-        # will eventually be a function of volume as well
-        return pd.Timedelta("3s")
-
-    def generate_fill_from_order(self, order, send_time):
-        fill_time = send_time + self.calculate_latency(order, send_time)
-        quantity = self.calculate_fill_quantity(order, fill_time)
-        cost = self.calculate_fill_cost(order, fill_time)
-
-        fe = FillEvent(fill_time, order.symbol, order.exchange, quantity, cost)
-        self.queue.put(fe)
+            send_time = self.queue.current_time + (pd.Timestamp.utcnow() - latency_start)
+            self.execution_handler.send_order(order, send_time)
 
 
 if __name__ == "__main__":
-    import pandas as pd
-    from event import DataEvent, FillEvent, Order, Signal
-    from event_queue import EventQueue
-    from data_handler import DataHandler
 
     def read_trades_csv(trades_csv_path):
         df = pd.read_csv(
@@ -145,7 +125,8 @@ if __name__ == "__main__":
 
     dh = DataHandler(start_time, all_data)
     eq = EventQueue(start_time)
-    port = BacktestPortfolio(eq, dh, init_cap)
+    eh = BacktestExecutionHandler(eq, dh)
+    port = BacktestPortfolio(eq, dh, eh, init_cap)
 
     def check_update_fill(port, sym):
         et = pd.Timestamp.utcnow()
@@ -173,5 +154,5 @@ if __name__ == "__main__":
         event = eq.get()
         print(event)
 
-    # check_send_order_from_signal(port, eq)
+    check_send_order_from_signal(port, eq)
 

@@ -4,6 +4,9 @@ import pandas as pd
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+from event import DataEvent, Signal
+from event_queue import EventQueue
+from data_handler import DataHandler
 
 class Strategy(ABC):
     @abstractmethod
@@ -117,10 +120,6 @@ class DollarWeightedMACD(Strategy):
 
 
 if __name__ == "__main__":
-    from event import DataEvent, Signal
-    from event_queue import EventQueue
-    from data_handler import DataHandler
-
 
     def read_trades_csv(trades_csv_path):
         df = pd.read_csv(
