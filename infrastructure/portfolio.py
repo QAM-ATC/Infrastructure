@@ -27,9 +27,11 @@ class BacktestPortfolio(Portfolio):
 
         self.all_positions_list = [pd.Series(0, index=self.symbol_list, name=queue.current_time)]  # list of series
         self.all_holdings_list = [self.construct_initial_holdings(initial_capital)]  # list of series
+        self.all_orders_list = []
         
         self.current_positions = pd.Series(0, index=self.symbol_list, name=queue.current_time)
         self.current_holdings = self.construct_initial_holdings(initial_capital)  # series
+        self.current_orders_list = []
 
     @property
     def all_positions(self):
@@ -38,6 +40,14 @@ class BacktestPortfolio(Portfolio):
     @property
     def all_holdings(self):
         return pd.DataFrame(self.all_holdings_list)
+
+    @property
+    def all_orders(self):
+        return pd.DataFrame(self.all_orders_list)
+
+    @property
+    def current_orders(self):
+        return pd.DataFrame(self.current_orders_list)
     
     def construct_initial_holdings(self, initial_capital):  # market values of positions
         holdings = {symbol: 0.0 for symbol in self.symbol_list}
@@ -66,6 +76,12 @@ class BacktestPortfolio(Portfolio):
     def risk_check(self):
         return True
 
+    def record_order(self, order, send_time):
+        self.all_orders_list.append(order.record(send_time))
+        if order.order_type == "MKT":
+            return
+        self.current_orders_list.append(order.record(send_time))
+
     def send_order_from_signal(self, signal):
         latency_start = pd.Timestamp.utcnow()
         order_type = "MKT"  # currently MKT orders only
@@ -85,6 +101,7 @@ class BacktestPortfolio(Portfolio):
             order = Order(signal.symbol, signal.exchange, order_type, direction, quantity, price)
             send_time = self.queue.current_time + (pd.Timestamp.utcnow() - latency_start)
             self.execution_handler.send_order(order, send_time)
+            self.record_order(order, send_time)
 
 
 if __name__ == "__main__":
@@ -149,8 +166,9 @@ if __name__ == "__main__":
     def check_send_order_from_signal(port, eq):
         exchange, type, strength = "BitMEX", "BUY", 1.0
         sig = Signal(sym, exchange, type, strength)
-
         port.send_order_from_signal(sig)
+        print(port.all_orders)
+        print(port.current_orders)
         event = eq.get()
         print(event)
 

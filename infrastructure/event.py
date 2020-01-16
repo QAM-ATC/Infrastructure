@@ -2,7 +2,7 @@ import pandas as pd
 
 from abc import ABC
 from functools import total_ordering
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 
 @total_ordering
 class Event(ABC):
@@ -62,3 +62,10 @@ class Order:
     direction: str  # BUY/SELL
     quantity: int
     price: float  # only relevant to LMT
+
+    def record(self, send_time):
+        return pd.Series(asdict(self), name=send_time)
+
+if __name__ == "__main__":
+    o = Order("XBTUSD", "BitMEX", "MKT", "BUY", 5, 7250)
+    print(o.record(pd.Timestamp.utcnow()))
