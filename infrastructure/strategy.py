@@ -137,34 +137,57 @@ class SimpleDollarWeightedMACD(Strategy):
         self.short_ma = 5
         self.long_ma = 10  # maybe can EWM but will need more parameters
 
-        self.ddf = self.make_dwap_df()
+        self.short_width = self.group_width * self.short_ma
+        self.long_width = self.group_width * self.long_ma
+
+        self.long_lookback = self.make_long_lookback_array()  # should make some deque structure
+        self.short_lookback = self.make_short_lookback_array()
+
         self.previously_increasing = self.increasing  # for checking for direction changes
 
-    def make_dwap_df(self):
+    def make_long_lookback_array(self):
         df = self.data_handler.read_table(self.symbol, "TRADES")
         df["dollars"] = df["size"] * df["price"]
-        df["group"] = (df["dollars"].cumsum() // self.group_width)
+        df["rev_cumsum"] = df["dollars"][::-1].values.cumsum()[::-1]
+        return df[df["rev_cumsum"] < self.long_width].iloc[:, :3].values
 
-        new_series = {}  # timestamp : dollar weighted average price
+    def make_short_lookback_array(self):
+        arr = self.long_lookback.copy()
+        while arr[:, 2].sum() > self.short_width:
+            arr = arr[1:]
+        return arr
 
-        for grp, gdf in df.groupby("group"):
-            timestamp = gdf.index[-1]  # last timing, prevent lookahead
-            dwap = (gdf["dollars"].values * gdf["price"].values).sum() / gdf["dollars"].values.sum()
-            new_series[timestamp] = dwap
+    def update_lookback_arrays(self, data_event):
+        new_row = np.array([
+            data_event.data["size"],
+            data_event.data["price"],
+            data_event.data["size"] * data_event.data["price"]
+        ])
 
-        ddf = pd.DataFrame.from_dict(new_series, orient="index", columns=["DWAP"])
-        ddf[f"{self.short_ma}SMA"] = ddf["DWAP"].rolling(self.short_ma).mean()
-        ddf[f"{self.long_ma}SMA"] = ddf["DWAP"].rolling(self.long_ma).mean()
-        return ddf
+        self.short_lookback = np.vstack([self.short_lookback, new_row])  # add new row
+        while self.short_lookback[:, 2].sum() > self.short_width:
+            self.short_lookback = self.short_lookback[1:]  # removing new row until okay
+
+        self.long_lookback = np.vstack([self.long_lookback, new_row])  # add new row
+        while self.long_lookback[:, 2].sum() > self.long_width:
+            self.long_lookback = self.long_lookback[1:]  # removing new row until okay
+
+
+    @property
+    def short_dwmap(self):
+        return (self.short_lookback[:, 1] * self.short_lookback[:, 2]).sum() / self.short_lookback[:, 2].sum()
+
+    @property
+    def long_dwmap(self):
+        return (self.long_lookback[:, 1] * self.long_lookback[:, 2]).sum() / self.long_lookback[:, 2].sum()
 
     @property
     def increasing(self):
-        return bool(self.ddf.iloc[-1][f"{self.short_ma}SMA"] > self.ddf.iloc[-1][f"{self.long_ma}SMA"])
+        return bool(self.short_dwmap > self.long_dwmap)
 
-    def calculate_signal(self):
+    def calculate_signal(self, data_event):
         prev = self.previously_increasing
-
-        self.ddf = self.make_dwap_df()
+        self.update_lookback_arrays(data_event)
         self.previously_increasing = self.increasing
 
         if prev == self.increasing:
@@ -221,18 +244,20 @@ if __name__ == "__main__":
     # ax.plot(strat.ddf)
     # plt.show()
 
-    data0 = pd.Series([10000, -200000], index=["size", "price"], name=tdf.index[1501])
+    data0 = pd.Series([10000, 200000], index=["size", "price"], name=tdf.index[1501])
     data1 = pd.Series([10000, 2000000], index=["size", "price"], name=tdf.index[1501])
     event_time = tdf.index[1501]
+    de = DataEvent(event_time, sym, "TRADES", data0)
 
-    print(strat.calculate_signal())
-    print("data0")
-    for i in range(5):
-        de = DataEvent(event_time, sym, "TRADES", data0)
-        dh.update_data(de)
-        print(strat.calculate_signal())
-    print("data1")
-    for i in range(5):
-        de = DataEvent(event_time, sym, "TRADES", data1)
-        dh.update_data(de)
-        print(strat.calculate_signal())
+    strat.update_lookback_arrays(de)
+    # print(strat.calculate_signal())
+    # print("data0")
+    # for i in range(5):
+    #     de = DataEvent(event_time, sym, "TRADES", data0)
+    #     dh.update_data(de)
+    #     print(strat.calculate_signal())
+    # print("data1")
+    # for i in range(5):
+    #     de = DataEvent(event_time, sym, "TRADES", data1)
+    #     dh.update_data(de)
+    #     print(strat.calculate_signal())

@@ -87,11 +87,9 @@ def main():
     #     #time.sleep(2)
 
     while not event_queue.empty():
-        print(event_queue.qsize())
         event = event_queue.get(False)
         if event.type == 'DATA':
-            data_handler.update_data(event)
-            signal = strat.calculate_signal()
+            signal = strat.calculate_signal(event)
             if signal:
                 print(signal)
     print("end")
