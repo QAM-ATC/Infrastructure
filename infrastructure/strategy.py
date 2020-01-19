@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 
 from abc import ABC, abstractmethod
+from collections import deque
 from dataclasses import dataclass
 
 from event import DataEvent, Signal
@@ -124,8 +125,49 @@ class DollarWeightedMACD(Strategy):
         return None
 
 
+class _DWMADeque(deque):
+    def __init__(self, width, trades_df, *args, **kwargs):
+        self.width = width
+        self.dollar_price_sum = 0
+        self.dollar_sum = 0
+        if type(trades_df) == pd.DataFrame:
+            self.load_data(trades_df)
+        super().__init__(*args, **kwargs)
+
+    def append(self, data):
+        size, price = data.to_list()
+        self.dollar_sum += size * price
+        self.dollar_price_sum += size * price ** 2
+        while len(self) > 1 and self.dollar_sum > self.width:
+            self.popleft()
+        super().append((size, price))
+
+    def appendleft(self, data):
+        size, price = data.to_list()
+        self.dollar_sum += size * price
+        self.dollar_price_sum += size * price ** 2
+        super().append((size, price))
+
+    def popleft(self):
+        size, price = super().popleft()
+        self.dollar_sum -= size * price
+        self.dollar_price_sum -= size * price ** 2
+        return size, price
+
+    def load_data(self, trades_df):
+        for _, data in trades_df.iloc[::-1].iterrows():  # from the most recent
+            size, price = data.to_list()
+            if self.dollar_sum + (size * price) < self.width:
+                self.append(data)
+            else:
+                break
+
+    @property
+    def DWAP(self):
+        return self.dollar_price_sum / self.dollar_sum
 
 class SimpleDollarWeightedMACD(Strategy):
+
     def __init__(self, queue, data_handler):
         self.queue = queue
         self.data_handler = data_handler
@@ -140,54 +182,24 @@ class SimpleDollarWeightedMACD(Strategy):
         self.short_width = self.group_width * self.short_ma
         self.long_width = self.group_width * self.long_ma
 
-        self.long_lookback = self.make_long_lookback_array()  # should make some deque structure
-        self.short_lookback = self.make_short_lookback_array()
+        tdf = self.data_handler.read_table(self.symbol, "TRADES")
+
+        self.short_deque = _DWMADeque(self.short_width, tdf)
+        self.long_deque = _DWMADeque(self.long_width, tdf)
 
         self.previously_increasing = self.increasing  # for checking for direction changes
 
-    def make_long_lookback_array(self):
-        df = self.data_handler.read_table(self.symbol, "TRADES")
-        df["dollars"] = df["size"] * df["price"]
-        df["rev_cumsum"] = df["dollars"][::-1].values.cumsum()[::-1]
-        return df[df["rev_cumsum"] < self.long_width].iloc[:, :3].values
-
-    def make_short_lookback_array(self):
-        arr = self.long_lookback.copy()
-        while arr[:, 2].sum() > self.short_width:
-            arr = arr[1:]
-        return arr
-
-    def update_lookback_arrays(self, data_event):
-        new_row = np.array([
-            data_event.data["size"],
-            data_event.data["price"],
-            data_event.data["size"] * data_event.data["price"]
-        ])
-
-        self.short_lookback = np.vstack([self.short_lookback, new_row])  # add new row
-        while self.short_lookback[:, 2].sum() > self.short_width:
-            self.short_lookback = self.short_lookback[1:]  # removing new row until okay
-
-        self.long_lookback = np.vstack([self.long_lookback, new_row])  # add new row
-        while self.long_lookback[:, 2].sum() > self.long_width:
-            self.long_lookback = self.long_lookback[1:]  # removing new row until okay
-
-
-    @property
-    def short_dwmap(self):
-        return (self.short_lookback[:, 1] * self.short_lookback[:, 2]).sum() / self.short_lookback[:, 2].sum()
-
-    @property
-    def long_dwmap(self):
-        return (self.long_lookback[:, 1] * self.long_lookback[:, 2]).sum() / self.long_lookback[:, 2].sum()
-
     @property
     def increasing(self):
-        return bool(self.short_dwmap > self.long_dwmap)
+        return self.short_deque.DWAP > self.long_deque.DWAP
+
+    def update_lookbacks(self, data_event):
+        self.short_deque.append(data_event.data)
+        self.long_deque.append(data_event.data)
 
     def calculate_signal(self, data_event):
         prev = self.previously_increasing
-        self.update_lookback_arrays(data_event)
+        self.update_lookbacks(data_event)
         self.previously_increasing = self.increasing
 
         if prev == self.increasing:
@@ -198,8 +210,6 @@ class SimpleDollarWeightedMACD(Strategy):
 
 
 if __name__ == "__main__":
-    import matplotlib.pyplot as plt
-
     def read_trades_csv(trades_csv_path):
         df = pd.read_csv(
             trades_csv_path,
@@ -240,24 +250,36 @@ if __name__ == "__main__":
     eq = EventQueue(start_time)
     strat = SimpleDollarWeightedMACD(eq, dh)
 
-    # ax = dh.read_table(sym, "TRADES")["price"].plot()
-    # ax.plot(strat.ddf)
-    # plt.show()
-
-    data0 = pd.Series([10000, 200000], index=["size", "price"], name=tdf.index[1501])
-    data1 = pd.Series([10000, 2000000], index=["size", "price"], name=tdf.index[1501])
+    data0 = pd.Series([1000, -200000], index=["size", "price"], name=tdf.index[1501])
+    data1 = pd.Series([1000, 2000000], index=["size", "price"], name=tdf.index[1501])
     event_time = tdf.index[1501]
+    print(strat.previously_increasing)
     de = DataEvent(event_time, sym, "TRADES", data0)
 
-    strat.update_lookback_arrays(de)
-    # print(strat.calculate_signal())
-    # print("data0")
-    # for i in range(5):
-    #     de = DataEvent(event_time, sym, "TRADES", data0)
-    #     dh.update_data(de)
-    #     print(strat.calculate_signal())
-    # print("data1")
-    # for i in range(5):
-    #     de = DataEvent(event_time, sym, "TRADES", data1)
-    #     dh.update_data(de)
-    #     print(strat.calculate_signal())
+    strat.update_lookbacks(de)
+    print(strat.calculate_signal(de))
+
+    print("data0")
+    for i in range(5):
+        de = DataEvent(event_time, sym, "TRADES", data0)
+        sig = strat.calculate_signal(de)
+        if sig:
+            print(sig)
+
+    print("data1")
+    for i in range(5):
+        de = DataEvent(event_time, sym, "TRADES", data1)
+        sig = strat.calculate_signal(de)
+        if sig:
+            print(sig)
+
+    def check_deque():
+        sdeq = _DWMADeque(40, None)
+        sdeq.append(pd.Series([1,10], index=["size", "price"]))
+        print(sdeq)
+        sdeq.append(pd.Series([1,20], index=["size", "price"]))
+        print(sdeq)
+        sdeq.append(pd.Series([2,10], index=["size", "price"]))
+        print(sdeq)
+
+    # check_deque()
