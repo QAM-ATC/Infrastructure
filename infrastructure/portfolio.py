@@ -96,6 +96,9 @@ class BacktestPortfolio(Portfolio):
         self.all_orders.append(pd.Series(asdict(order), name=send_time))
 
     def send_order_from_signal(self, signal):
+        if not signal:
+            return
+
         latency_start = pd.Timestamp.utcnow()
         order_type = "MKT"  # currently MKT orders only
 
@@ -109,10 +112,8 @@ class BacktestPortfolio(Portfolio):
             direction = signal.signal_type
             quantity = int(10 * signal.strength)
 
-        price = 0.0  # MKT order
-
         if self.risk_check():
-            order = Order(signal.symbol, signal.exchange, order_type, direction, quantity, price)
+            order = Order(signal.symbol, signal.exchange, order_type, direction, quantity, 0.0)
             send_time = self.queue.current_time + (pd.Timestamp.utcnow() - latency_start)
             self.execution_handler.send_order(order, send_time)
             self.record_order(order, send_time)

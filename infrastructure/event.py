@@ -63,8 +63,6 @@ class Order:
     quantity: int
     price: float  # only relevant to LMT
 
-    def record(self, send_time):
-        return pd.Series(asdict(self), name=send_time)
 
 if __name__ == "__main__":
     o = Order("XBTUSD", "BitMEX", "MKT", "BUY", 5, 7250)

@@ -10,7 +10,7 @@ from data_handler import DataHandler
 
 class Strategy(ABC):
     @abstractmethod
-    def generate_signal(self):
+    def calculate_signal(self):
         pass
 
 
@@ -21,8 +21,10 @@ class DollarWeightedMACD(Strategy):
 
         self.symbol = "XBTUSD"
         self.exchange = "BitMEX"
+
         group_width = 680850400  # arbitrary, eventually can dynamically adjust
         short_ma, long_ma = 5, 10  # maybe can EWM but will need more parameters
+
         tdf = self.data_handler.read_table(self.symbol, "TRADES")
         self.ddf, curr_bar = self.make_dwap_df_and_curr_bar(tdf, group_width)
 
@@ -63,10 +65,13 @@ class DollarWeightedMACD(Strategy):
         ddf = pd.Series(new_series, name="dwap").to_frame()
         return ddf, curr_bar
 
-    def generate_signal(self, data_event):
+    def calculate_signal(self, data_event):
         # also updates cache, inefficient
         # should rewrite such that chache update is separate
         # needs to be updated such that it uses Signal objects
+
+        if data_event.table_name != "TRADES":
+            return
 
         new_row = np.array([[
             data_event.data["size"],
@@ -74,8 +79,8 @@ class DollarWeightedMACD(Strategy):
             data_event.data["size"] * data_event.data["price"]
         ]])
 
-        print(self.cache.ma_vals.sum() / self.params.long_ma_window)
-        print(self.cache.ma_vals[-self.params.short_ma_window:].sum() / self.params.short_ma_window)
+        # print(self.cache.ma_vals.sum() / self.params.long_ma_window)
+        # print(self.cache.ma_vals[-self.params.short_ma_window:].sum() / self.params.short_ma_window)
 
         self.cache.remaining_width -= new_row[0, 2]
         # print(self.cache.curr_bar)
@@ -95,8 +100,8 @@ class DollarWeightedMACD(Strategy):
         long_sma = self.cache.ma_vals.sum() / self.params.long_ma_window
         short_sma = self.cache.ma_vals[-self.params.short_ma_window:].sum() / self.params.short_ma_window
 
-        print(long_sma)
-        print(short_sma)
+        # print(long_sma)
+        # print(short_sma)
 
         new_inc = bool(short_sma > long_sma)
         old_inc = self.cache.increasing
@@ -119,7 +124,58 @@ class DollarWeightedMACD(Strategy):
         return None
 
 
+
+class SimpleDollarWeightedMACD(Strategy):
+    def __init__(self, queue, data_handler):
+        self.queue = queue
+        self.data_handler = data_handler
+
+        self.symbol = "XBTUSD"
+        self.exchange = "BitMEX"
+
+        self.group_width = 680850400  # arbitrary, eventually can dynamically adjust
+        self.short_ma = 5
+        self.long_ma = 10  # maybe can EWM but will need more parameters
+
+        self.ddf = self.make_dwap_df()
+        self.previously_increasing = self.increasing  # for checking for direction changes
+
+    def make_dwap_df(self):
+        df = self.data_handler.read_table(self.symbol, "TRADES")
+        df["dollars"] = df["size"] * df["price"]
+        df["group"] = (df["dollars"].cumsum() // self.group_width)
+
+        new_series = {}  # timestamp : dollar weighted average price
+
+        for grp, gdf in df.groupby("group"):
+            timestamp = gdf.index[-1]  # last timing, prevent lookahead
+            dwap = (gdf["dollars"].values * gdf["price"].values).sum() / gdf["dollars"].values.sum()
+            new_series[timestamp] = dwap
+
+        ddf = pd.DataFrame.from_dict(new_series, orient="index", columns=["DWAP"])
+        ddf[f"{self.short_ma}SMA"] = ddf["DWAP"].rolling(self.short_ma).mean()
+        ddf[f"{self.long_ma}SMA"] = ddf["DWAP"].rolling(self.long_ma).mean()
+        return ddf
+
+    @property
+    def increasing(self):
+        return bool(self.ddf.iloc[-1][f"{self.short_ma}SMA"] > self.ddf.iloc[-1][f"{self.long_ma}SMA"])
+
+    def calculate_signal(self):
+        prev = self.previously_increasing
+
+        self.ddf = self.make_dwap_df()
+        self.previously_increasing = self.increasing
+
+        if prev == self.increasing:
+            return None
+
+        signal_type = ["SELL", "BUY"][self.increasing]
+        return Signal(self.symbol, self.exchange, signal_type, 1)
+
+
 if __name__ == "__main__":
+    import matplotlib.pyplot as plt
 
     def read_trades_csv(trades_csv_path):
         df = pd.read_csv(
@@ -159,14 +215,24 @@ if __name__ == "__main__":
 
     dh = DataHandler(start_time, all_data)
     eq = EventQueue(start_time)
+    strat = SimpleDollarWeightedMACD(eq, dh)
 
-    # future_data = dh.get_future_data(all_data, start_time)
-    # eq.update_future_data(future_data)
+    # ax = dh.read_table(sym, "TRADES")["price"].plot()
+    # ax.plot(strat.ddf)
+    # plt.show()
 
-    strat = DollarWeightedMACD(eq, dh)
-
-    data = pd.Series([10000, -200000], index=["size", "price"], name=tdf.index[1501])
-
+    data0 = pd.Series([10000, -200000], index=["size", "price"], name=tdf.index[1501])
+    data1 = pd.Series([10000, 2000000], index=["size", "price"], name=tdf.index[1501])
     event_time = tdf.index[1501]
-    de = DataEvent(event_time, sym, "TRADES", data)
-    sig = strat.generate_signal(de)
+
+    print(strat.calculate_signal())
+    print("data0")
+    for i in range(5):
+        de = DataEvent(event_time, sym, "TRADES", data0)
+        dh.update_data(de)
+        print(strat.calculate_signal())
+    print("data1")
+    for i in range(5):
+        de = DataEvent(event_time, sym, "TRADES", data1)
+        dh.update_data(de)
+        print(strat.calculate_signal())

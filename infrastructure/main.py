@@ -6,7 +6,8 @@ import time
 from itertools import islice
 from event_queue import EventQueue
 from data_handler import DataHandler
-from strategy import DollarWeightedMACD
+from strategy import DollarWeightedMACD, SimpleDollarWeightedMACD
+from execution_handler import BacktestExecutionHandler
 from portfolio import BacktestPortfolio
 
 def read_trades_csv(trades_csv_path):
@@ -19,8 +20,19 @@ def read_trades_csv(trades_csv_path):
         ],
         parse_dates=["received"],
         index_col="received",
-        nrows=30000
+        # nrows=30000
     )
+    return df
+
+
+def read_quotes_csv(quotes_csv_path):
+    df = pd.read_csv(
+        quotes_csv_path,
+        usecols=["bidSize", "bidPrice", "askPrice", "askSize", "recorded"],
+        parse_dates=["recorded"],
+        index_col="recorded",
+    )
+    df.index.name = "received"
     return df
 
 def simulate_future_data(future_data, batch_size):
@@ -33,44 +45,55 @@ def main():
         trades_csv_path = sys.argv[1]
     else:
         trades_csv_path = "play_data/XBTUSD_trades_191214_0434.csv"
-    df = read_trades_csv(trades_csv_path)
-    start_time = df.index[5]
-    all_data = {"df_table": df}
+
+    tdf = read_trades_csv(trades_csv_path)
+    start_time = tdf.index[5]
+
+    symbol = "XBTUSD"
+
+    all_data = {}
+    all_data[symbol] = {}
+    all_data[symbol]["TRADES"] = tdf
 
     data_handler = DataHandler(start_time, all_data)
-    future_data = data_handler.get_future_data(all_data, start_time)
-    batch_size = 1
-    future_data_generator = simulate_future_data(future_data, batch_size)
     event_queue = EventQueue(start_time)
-    portfolio = BacktestPortfolio()
-    strat = DollarWeightedMACD(data_handler.read_table("df_table"))
+    execution_handler = BacktestExecutionHandler(event_queue, data_handler)
+    portfolio = BacktestPortfolio(event_queue, data_handler, execution_handler)
+    strat = SimpleDollarWeightedMACD(event_queue, data_handler)
 
-    empty_future_data = False
-    while True:
-        if not empty_future_data:
-            try:
-                new_data_events_from_broker = next(future_data_generator)
-            except:
-                empty_future_data = True
-        print(new_data_events_from_broker)
-        for new_data_event in new_data_events_from_broker:
-            data_handler.update_data(new_data_event)
-            event_queue.put(new_data_event)
-        while event_queue.qsize() != 0:
-            event = event_queue.get()
-            if event.type == 'DATA':
-                if strat.generate_signal(event.data.size, event.data.price) == 1:
-                    print(True)
-                    sys.exit()
-        #time.sleep(2)
+    # batch_size = 1
+    # future_data_generator = simulate_future_data(future_data, batch_size)
 
-        
+    future_data = data_handler.get_future_data(all_data, start_time)
+    event_queue.update_future_data(future_data)
 
-    # print(dwmacd.generate_signal(100000, 7500))
-    # print(dwmacd.generate_signal(200000, 7000))
-    # print(dwmacd.generate_signal(100000, 7000))
-    # print(dwmacd.generate_signal(100000, 8000))
+    # empty_future_data = False
+    # while True:
+    #     if not empty_future_data:
+    #         try:
+    #             new_data_events_from_broker = next(future_data_generator)
+    #         except:
+    #             empty_future_data = True
+    #     print(new_data_events_from_broker)
+    #     for new_data_event in new_data_events_from_broker:
+    #         data_handler.update_data(new_data_event)
+    #         event_queue.put(new_data_event)
+    #     while event_queue.qsize() != 0:
+    #         event = event_queue.get()
+    #         if event.type == 'DATA':
+    #             if strat.generate_signal(event.data.size, event.data.price) == 1:
+    #                 print(True)
+    #                 sys.exit()
+    #     #time.sleep(2)
 
-
+    while not event_queue.empty():
+        print(event_queue.qsize())
+        event = event_queue.get(False)
+        if event.type == 'DATA':
+            data_handler.update_data(event)
+            signal = strat.calculate_signal()
+            if signal:
+                print(signal)
+    print("end")
 if __name__ == "__main__":
     main()
