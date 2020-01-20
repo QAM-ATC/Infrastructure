@@ -31,7 +31,7 @@ class BacktestPortfolio(Portfolio):
         self.current_positions = pd.Series(0, index=self.symbol_list, name=queue.current_time)
         self.current_holdings = self.construct_initial_holdings(initial_capital)  # series
 
-        self.all_orders = pd.DataFrame()
+        self.all_orders_list = []
         self.all_positions_list = [pd.Series(0, index=self.symbol_list, name=queue.current_time)]  # list of series
         self.all_holdings_list = [self.construct_initial_holdings(initial_capital)]  # list of series
 
@@ -40,18 +40,23 @@ class BacktestPortfolio(Portfolio):
         return pd.DataFrame(self.current_orders_dict)
 
     @property
+    def all_orders(self):
+        return pd.DataFrame(self.all_orders_list)
+
+    @property
     def all_positions(self):
         return pd.DataFrame(self.all_positions_list)
 
     @property
     def all_holdings(self):
-        return pd.DataFrame(self.all_holdings_list)
+        df = pd.DataFrame(self.all_holdings_list)
+        df["total"] = df.sum(axis=1)
+        return df
 
     def construct_initial_holdings(self, initial_capital):  # market values of positions
         holdings = {symbol: 0.0 for symbol in self.symbol_list}
         holdings["cash"] = initial_capital
         holdings["commission"] = 0.0
-        holdings["total"] = initial_capital
         return pd.Series(holdings, name=self.queue.current_time)
 
     def update_positions(self, fill):
@@ -66,7 +71,7 @@ class BacktestPortfolio(Portfolio):
         self.current_holdings["commission"] += fill.commission
         self.all_holdings_list.append(self.current_holdings.copy())
 
-    def update_order_fill(self, fill):
+    def update_limit_order_fill(self, fill):
         assert self.current_orders_dict[fill.symbol].get(fill.cost), f"No orders at price {fill.cost}"
 
         while fill.quantity > self.current_orders_dict[fill.symbol][fill.cost][0]:
@@ -79,10 +84,11 @@ class BacktestPortfolio(Portfolio):
             if not self.current_orders_dict[fill.symbol][fill.cost]:  # if deque empty:
                 del self.current_orders_dict[fill.symbol][fill.cost]  # remove deque
 
-    def update_fill(self, fill):
-        self.update_positions(fill)
-        self.update_holdings(fill)
-        self.update_order_fill(fill)
+    def update_fill(self, fill_event):
+        self.update_positions(fill_event)
+        self.update_holdings(fill_event)
+        if fill_event.order_type == "LMT":
+            self.update_limit_order_fill(fill_event)
 
     def risk_check(self):
         return True
@@ -93,7 +99,7 @@ class BacktestPortfolio(Portfolio):
                 self.current_orders_dict[order.symbol][order.price].append(order.quantity)
             else:
                 self.current_orders_dict[order.symbol][order.price] = deque([order.quantity])
-        self.all_orders.append(pd.Series(asdict(order), name=send_time))
+        self.all_orders_list.append(pd.Series(asdict(order), name=send_time))
 
     def send_order_from_signal(self, signal):
         if not signal:
@@ -103,14 +109,11 @@ class BacktestPortfolio(Portfolio):
         order_type = "MKT"  # currently MKT orders only
 
         if signal.signal_type == "EXIT":  # saw this in the guide
-            if self.current_positions[signal.symbol] < 0:  # if currently short
-                direction = "BUY"
-            else:
-                direction = "SELL"
+            direction = ["BUY", "SELL"][self.current_positions[signal.symbol] > 0]  # if currently long
             quantity = int(self.current_positions[signal.symbol] * signal.strength)
         else:
             direction = signal.signal_type
-            quantity = int(10 * signal.strength)
+            quantity = int(signal.strength)
 
         if self.risk_check():
             order = Order(signal.symbol, signal.exchange, order_type, direction, quantity, 0.0)

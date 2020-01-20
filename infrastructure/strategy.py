@@ -198,6 +198,9 @@ class SimpleDollarWeightedMACD(Strategy):
         self.long_deque.append(data_event.data)
 
     def calculate_signal(self, data_event):
+        if data_event.table_name != "TRADES":
+            return None
+
         prev = self.previously_increasing
         self.update_lookbacks(data_event)
         self.previously_increasing = self.increasing

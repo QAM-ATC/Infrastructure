@@ -31,17 +31,21 @@ class DataEvent(Event):
 
 @dataclass
 class FillEvent(Event):
-    __slots__ = "event_time", "symbol", "exchange", "quantity", "cost"
+    __slots__ = "event_time", "symbol", "exchange", "order_type", "quantity", "cost"
     event_time: pd.Timestamp
     symbol: str
     exchange: str
+    order_type: str
     quantity: int  # change in securities held
     cost: float  # change in cash held
 
     @property
     def commission(self):
         # will eventually contain exchange/broker-specific logic
-        return self.cost * 0.005
+        return abs(self.cost) * -0.005
+
+    def __post_init__(self):
+        self.type = "FILL"
 
 
 @dataclass

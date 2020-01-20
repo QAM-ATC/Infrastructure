@@ -18,8 +18,11 @@ class BacktestExecutionHandler(ExecutionHandler):
         self.data_handler = data_handler
 
     def calculate_fill_cost(self, order, reach_time):
-        quotes = self.data_handler.lookahead[order.symbol]["QUOTES"].loc[reach_time:].iloc[0]
         if order.order_type == "MKT":
+            try:
+                quotes = self.data_handler.lookahead[order.symbol]["QUOTES"].loc[reach_time:].iloc[0]
+            except:
+                return order.price
             if order.direction == "BUY":
                 fill_price = quotes["askPrice"]
             else:
@@ -31,7 +34,7 @@ class BacktestExecutionHandler(ExecutionHandler):
 
     def calculate_fill_quantity(self, order, reach_time):
         # for non-market orders
-        return order.quantity
+        return int(order.quantity)
 
     def calculate_latency(self, order, send_time):
         # will eventually use self.data_handler.lookahead[order.symbol]["QUOTES"].loc[reach_time:]
@@ -40,10 +43,11 @@ class BacktestExecutionHandler(ExecutionHandler):
 
     def send_order(self, order, send_time):
         reach_time = send_time + self.calculate_latency(order, send_time)
-        quantity = self.calculate_fill_quantity(order, reach_time)
-        cost = self.calculate_fill_cost(order, reach_time)
-
-        fe = FillEvent(reach_time, order.symbol, order.exchange, quantity, cost)
+        sign = [1, -1][order.direction == "SELL"]
+        quantity = sign * self.calculate_fill_quantity(order, reach_time)
+        cost = sign * self.calculate_fill_cost(order, reach_time)
+        # will need to figure out how the fills and orders work for each exchange
+        fe = FillEvent(reach_time, order.symbol, order.exchange, order.order_type, quantity, cost)
         self.queue.put(fe)
 
 

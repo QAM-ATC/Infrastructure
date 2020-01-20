@@ -1,5 +1,6 @@
+import numpy as np
 import pandas as pd
-
+import matplotlib.pyplot as plt
 import sys
 import time
 
@@ -20,7 +21,7 @@ def read_trades_csv(trades_csv_path):
         ],
         parse_dates=["received"],
         index_col="received",
-        # nrows=30000
+        nrows=30000
     )
     return df
 
@@ -40,32 +41,70 @@ def simulate_future_data(future_data, batch_size):
         yield future_data[i: i + batch_size]
         print(f"{i}/{len(future_data)}")
 
-def main():
+if __name__ == "__main__":
     if len(sys.argv) > 1:
         trades_csv_path = sys.argv[1]
     else:
         trades_csv_path = "play_data/XBTUSD_trades_191214_0434.csv"
+        quotes_csv_path = "play_data/XBTUSD_quotes_191214_0434.csv"
 
+    class Timer:
+        def start(self, message):
+            print(message, end=" ")
+            self.starting_time = pd.Timestamp.utcnow()
+
+        def stop(self):
+            print(pd.Timestamp.utcnow()-self.starting_time)
+
+    timer = Timer()
+
+    timer.start("reading quotes")
     tdf = read_trades_csv(trades_csv_path)
-    start_time = tdf.index[5]
+    timer.stop()
+
+    timer.start("reading trades")
+    qdf = read_quotes_csv(quotes_csv_path)
+    qdf = qdf.loc[:tdf.index[-1]]
+    timer.stop()
+
+    start_time = tdf.index[1500]
 
     symbol = "XBTUSD"
 
     all_data = {}
     all_data[symbol] = {}
     all_data[symbol]["TRADES"] = tdf
+    all_data[symbol]["QUOTES"] = qdf
 
+    timer.start("initializing data_handler")
     data_handler = DataHandler(start_time, all_data)
+    timer.stop()
+
+    timer.start("initializing event_queue")
     event_queue = EventQueue(start_time)
+    timer.stop()
+
+    timer.start("initializing execution_handler")
     execution_handler = BacktestExecutionHandler(event_queue, data_handler)
+    timer.stop()
+
+    timer.start("initializing portfolio")
     portfolio = BacktestPortfolio(event_queue, data_handler, execution_handler)
+    timer.stop()
+
+    timer.start("initializing strat")
     strat = SimpleDollarWeightedMACD(event_queue, data_handler)
+    timer.stop()
 
     # batch_size = 1
     # future_data_generator = simulate_future_data(future_data, batch_size)
-
+    timer.start("getting future data")  # bottleneck
     future_data = data_handler.get_future_data(all_data, start_time)
+    timer.stop()
+
+    timer.start("loading queue")
     event_queue.update_future_data(future_data)
+    timer.stop()
 
     # empty_future_data = False
     # while True:
@@ -88,11 +127,15 @@ def main():
 
     while not event_queue.empty():
         event = event_queue.get(False)
-        if event.type == 'DATA':
-            signal = strat.calculate_signal(event)
-            if signal:
-                print(signal)
-    print("end")
+        if event.type == "DATA":
+            sig = strat.calculate_signal(event)
+            if sig:
+                sig.signal_type = ["SELL", "BUY"][sig.signal_type != "BUY"]
+                portfolio.send_order_from_signal(sig)
+        elif event.type == "FILL":
+            portfolio.update_fill(event)
 
-if __name__ == "__main__":
-    main()
+    print(portfolio.all_orders)
+    print(portfolio.all_holdings)
+    print(portfolio.all_positions)
+    portfolio.all_holdings.plot()
