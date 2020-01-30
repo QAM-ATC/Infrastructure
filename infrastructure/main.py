@@ -7,7 +7,7 @@ import time
 from itertools import islice
 from event_queue import EventQueue
 from data_handler import DataHandler
-from strategy import DollarWeightedMACD, SimpleDollarWeightedMACD
+from strategy import DollarWeightedMACD
 from execution_handler import BacktestExecutionHandler
 from portfolio import BacktestPortfolio
 
@@ -93,7 +93,8 @@ if __name__ == "__main__":
     timer.stop()
 
     timer.start("initializing strat")
-    strat = SimpleDollarWeightedMACD(event_queue, data_handler)
+    tdf = data_handler.read_table(symbol, "TRADES")
+    strat = DollarWeightedMACD(tdf)
     timer.stop()
 
     # batch_size = 1
@@ -106,29 +107,12 @@ if __name__ == "__main__":
     event_queue.update_future_data(future_data)
     timer.stop()
 
-    # empty_future_data = False
-    # while True:
-    #     if not empty_future_data:
-    #         try:
-    #             new_data_events_from_broker = next(future_data_generator)
-    #         except:
-    #             empty_future_data = True
-    #     print(new_data_events_from_broker)
-    #     for new_data_event in new_data_events_from_broker:
-    #         data_handler.update_data(new_data_event)
-    #         event_queue.put(new_data_event)
-    #     while event_queue.qsize() != 0:
-    #         event = event_queue.get()
-    #         if event.type == 'DATA':
-    #             if strat.generate_signal(event.data.size, event.data.price) == 1:
-    #                 print(True)
-    #                 sys.exit()
-    #     #time.sleep(2)
-
     while not event_queue.empty():
         event = event_queue.get(False)
         if event.type == "DATA":
-            sig = strat.calculate_signal(event)
+            if event.table_name != "TRADES":
+                continue
+            sig = strat.calculate_signal_from_data_event(event)
             if sig:
                 sig.signal_type = ["SELL", "BUY"][sig.signal_type != "BUY"]
                 portfolio.send_order_from_signal(sig)

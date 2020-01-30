@@ -102,9 +102,6 @@ class BacktestPortfolio(Portfolio):
         self.all_orders_list.append(pd.Series(asdict(order), name=send_time))
 
     def send_order_from_signal(self, signal):
-        if not signal:
-            return
-
         latency_start = pd.Timestamp.utcnow()
         order_type = "MKT"  # currently MKT orders only
 
