@@ -161,13 +161,11 @@ if __name__ == "__main__":
     eh = BacktestExecutionHandler(eq, dh)
     port = BacktestPortfolio(eq, dh, eh, init_cap)
 
-
-    def check_update_fill(port, sym):
-        temp = port.update_order_fill
-        port.update_order_fill = lambda x: None
+    def test_update_fill(port, sym):
+        temp = port.update_fill
+        port.update_fill = lambda x: None
         et = pd.Timestamp.utcnow()
-        exchange, quantity, cost = "BitMEX", 10, 5000
-        fe = FillEvent(et, sym, exchange, quantity, cost)
+        fe = FillEvent(et, sym, "BitMEX", "MKT", 10, 5000)
         p0 = port.all_positions
         h0 = port.all_holdings
         port.update_fill(fe)
@@ -179,23 +177,15 @@ if __name__ == "__main__":
         print("positions:")
         print(p0)
         print(p1)
-        port.update_order_fill = temp
+        port.update_fill = temp
 
-
-    check_update_fill(port, sym)
-
-
-    def check_send_order_from_signal(port, eq):
+    def test_send_order_from_signal(port, eq):
         sig = Signal(sym, "BitMEX", "BUY", 1.0)
         port.send_order_from_signal(sig)
         event = eq.get()
         print(event)
 
-
-    check_send_order_from_signal(port, eq)
-
-
-    def check_order_recording(port):
+    def test_order_recording(port):
         print(port.current_orders)
         o0 = Order(sym, "BitMEX", "LMT", "SELL", 10, 7300)
         o1 = Order(sym, "BitMEX", "LMT", "SELL", 15, 7300)
@@ -204,15 +194,16 @@ if __name__ == "__main__":
         port.record_order(o1, pd.Timestamp.utcnow())
         port.record_order(o2, pd.Timestamp.utcnow())
         print(port.current_orders)
-        f0 = FillEvent(pd.Timestamp.utcnow(), sym, "BitMEX", 5, 7300)
-        f1 = FillEvent(pd.Timestamp.utcnow(), sym, "BitMEX", 10, 7300)
-        f2 = FillEvent(pd.Timestamp.utcnow(), sym, "BitMEX", 10, 7300)
-        port.update_order_fill(f0)
+        f0 = FillEvent(pd.Timestamp.utcnow(), sym, "BitMEX", "MKT", 5, 7300)
+        f1 = FillEvent(pd.Timestamp.utcnow(), sym, "BitMEX", "MKT", 10, 7300)
+        f2 = FillEvent(pd.Timestamp.utcnow(), sym, "BitMEX", "MKT", 10, 7300)
+        port.update_fill(f0)
         print(port.current_orders)
-        port.update_order_fill(f1)
+        port.update_fill(f1)
         print(port.current_orders)
-        port.update_order_fill(f2)
+        port.update_fill(f2)
         print(port.current_orders)
 
-
-    check_order_recording(port)
+    test_update_fill(port, sym)
+    test_send_order_from_signal(port, eq)
+    test_order_recording(port)
