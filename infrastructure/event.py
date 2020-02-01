@@ -6,10 +6,6 @@ from dataclasses import dataclass, asdict
 
 @total_ordering
 class Event(ABC):
-    def __post_init__(self):
-        assert type(self.event_time) == pd.Timestamp, \
-            "pd.Timestamp event_time required"
-
     def __eq__(self, other):
         return self.event_time == other.event_time
 
@@ -19,19 +15,19 @@ class Event(ABC):
 
 @dataclass
 class DataEvent(Event):
-    __slots__ = "event_time", "symbol", "table_name", "data"
+    __slots__ = "event_time", "symbol", "table_name", "data", "type"
     event_time: pd.Timestamp
     symbol: str
     table_name: str
     data: pd.Series
 
-    def __post_init__(self):
+    def __post_init__(self):  # can probably be optimised further
         self.type = "DATA"
 
 
 @dataclass
 class FillEvent(Event):
-    __slots__ = "event_time", "symbol", "exchange", "order_type", "quantity", "cost"
+    __slots__ = "event_time", "symbol", "exchange", "order_type", "quantity", "cost", "type"
     event_time: pd.Timestamp
     symbol: str
     exchange: str
@@ -40,11 +36,10 @@ class FillEvent(Event):
     cost: float  # change in cash held
 
     @property
-    def commission(self):
-        # will eventually contain exchange/broker-specific logic
+    def commission(self):  # will eventually contain exchange/broker-specific logic
         return abs(self.cost) * -0.005
 
-    def __post_init__(self):
+    def __post_init__(self):  # can probably be optimised further
         self.type = "FILL"
 
 
@@ -70,4 +65,9 @@ class Order:
 
 if __name__ == "__main__":
     o = Order("XBTUSD", "BitMEX", "MKT", "BUY", 5, 7250)
-    print(o.record(pd.Timestamp.utcnow()))
+    s = pd.Series([1,2,3])
+    de0 = DataEvent(pd.Timestamp.utcnow(), "XBTUSD", "DATA", s)
+    de1 = DataEvent(pd.Timestamp.utcnow(), "XBTUSD", "DATA", s)
+    print(de0 < de1)
+    print(o)
+    print(de0.type)

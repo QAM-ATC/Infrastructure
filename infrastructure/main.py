@@ -7,7 +7,7 @@ import time
 from itertools import islice
 from event_queue import EventQueue
 from data_handler import DataHandler
-from strategy import DollarWeightedMACD, SimpleDollarWeightedMACD
+from strategy import DollarWeightedMACD
 from execution_handler import BacktestExecutionHandler
 from portfolio import BacktestPortfolio
 
@@ -93,49 +93,44 @@ if __name__ == "__main__":
     timer.stop()
 
     timer.start("initializing strat")
-    strat = SimpleDollarWeightedMACD(event_queue, data_handler)
+    tdf = data_handler.read_table(symbol, "TRADES")
+    strat = DollarWeightedMACD(tdf)
     timer.stop()
 
     # batch_size = 1
     # future_data_generator = simulate_future_data(future_data, batch_size)
-    timer.start("getting future data")  # bottleneck
-    future_data = data_handler.get_future_data(all_data, start_time)
-    timer.stop()
 
-    timer.start("loading queue")
-    event_queue.update_future_data(future_data)
-    timer.stop()
+    timer.start("getting future data list")
+    future_data = data_handler.get_future_data_list()
+    timer.stop()  # 24.152066 with full data
 
-    # empty_future_data = False
-    # while True:
-    #     if not empty_future_data:
-    #         try:
-    #             new_data_events_from_broker = next(future_data_generator)
-    #         except:
-    #             empty_future_data = True
-    #     print(new_data_events_from_broker)
-    #     for new_data_event in new_data_events_from_broker:
-    #         data_handler.update_data(new_data_event)
-    #         event_queue.put(new_data_event)
-    #     while event_queue.qsize() != 0:
-    #         event = event_queue.get()
-    #         if event.type == 'DATA':
-    #             if strat.generate_signal(event.data.size, event.data.price) == 1:
-    #                 print(True)
-    #                 sys.exit()
-    #     #time.sleep(2)
+    timer.start("loading queue with list")
+    [event_queue.put(i) for i in future_data]
+    timer.stop()  # 00.504378
 
+    # timer.start("getting future data generator")
+    # future_data_generator = data_handler.get_future_data_generator()
+    # timer.stop()  # 00.000013 with full data
+    #
+    # timer.start("loading queue with generator")
+    # [event_queue.put(i) for i in future_data_generator]
+    # timer.stop()  # 27.694493 with full data
+
+    timer.start("backtesting")
     while not event_queue.empty():
         event = event_queue.get(False)
         if event.type == "DATA":
-            sig = strat.calculate_signal(event)
+            if event.table_name != "TRADES":
+                continue
+            sig = strat.calculate_signal_from_data_event(event)
             if sig:
-                sig.signal_type = ["SELL", "BUY"][sig.signal_type != "BUY"]
+                # sig.signal_type = ["SELL", "BUY"][sig.signal_type != "BUY"]  # putting a -1 in front
                 portfolio.send_order_from_signal(sig)
         elif event.type == "FILL":
             portfolio.update_fill(event)
+    timer.stop()
 
-    print(portfolio.all_orders)
-    print(portfolio.all_holdings)
-    print(portfolio.all_positions)
+    # print(portfolio.all_orders)
+    # print(portfolio.all_holdings)
+    # print(portfolio.all_positions)
     portfolio.all_holdings.plot()

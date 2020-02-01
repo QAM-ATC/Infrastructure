@@ -10,8 +10,3 @@ class EventQueue(PriorityQueue):
         event = super().get(*args, **kwargs)
         self.current_time = event.event_time
         return event
-
-    def update_future_data(self, future_data):
-        for data_event in future_data:
-            self.put(data_event)
-    # we may or may not want to use this.. can manually put in the "main loop"
