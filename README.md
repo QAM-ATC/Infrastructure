@@ -3,6 +3,9 @@
 ## Infrastructure
 
 ## 1. Resources
+# Covers: 
+
+https://github.com/QAM-ATC/Algorithmic-Trading/tree/master/Resources
 ## 2. Data Handling and Statistics
 ## 3. Technical Analysis using Python 
 ## 4. Performance Measurement - KPIs
