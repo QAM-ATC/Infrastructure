@@ -4,6 +4,10 @@
 
 ## 1. Resources
 ####  Covers: 
+1. How to use yahoofinancials to extract intraday data
+2. How to use yFinance
+3. How to use AlphaVantage API for intraday data
+4. How to webscrape Yahoo Finance 
 
 https://github.com/QAM-ATC/Algorithmic-Trading/tree/master/Resources
 ## 2. Data Handling and Statistics
