@@ -49,8 +49,16 @@ https://github.com/QAM-ATC/Algorithmic-Trading/tree/master/Performance%20Measure
 
 https://github.com/QAM-ATC/Infrastructure/tree/master/Backtesting
 
-## 6. Build Python Trading Bot 
+Additional Materials:
+<button href = "https://github.com/QAM-ATC/Backtrader-"> Using Backtrader Library to Backtest Strategy </button>
 
+
+## 6. Build Python Trading Bot 
+1. How to setup my Oanda Account
+2. Oanda API Basics 
+3. SMA CROSSOVER STRATEGY with Stochastics 
+
+https://github.com/QAM-ATC/Infrastructure/tree/master/oanda_trading_bot
 
 The backtester's structure is based on a series of articles by Michael L. Halls-Moore of QuantStart
 https://www.quantstart.com/articles/Event-Driven-Backtesting-with-Python-Part-i/
