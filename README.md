@@ -2,7 +2,7 @@
 
 ## Infrastructure
 Updated as at 10/5/2020
-This group was build with the intent of developing a trading architecture for future members to adopt and utilise. As such the core focus of this repository is the section on How do we build a Trading bot.
+This group was build with the intent of developing a trading architecture for future members to adopt and utilise. As such the core focus of this repository is the section on How do we [build a python trading bot](https://github.com/QAM-ATC/Infrastructure/tree/master/oanda_trading_bot). 
 
 ### 1. Resources
 ####  Covers: 
