@@ -1,6 +1,7 @@
 # QAM ATC
 
 ## Infrastructure
+This group was build with the intent of developing a trading architecture for future members to adopt and utilise.
 
 ## 1. Resources
 ####  Covers: 
