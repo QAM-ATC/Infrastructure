@@ -1,7 +1,7 @@
 # QAM ATC
 
 ## Infrastructure
-This group was build with the intent of developing a trading architecture for future members to adopt and utilise.
+This group was build with the intent of developing a trading architecture for future members to adopt and utilise. As such the core focus of this repository is the section on How do we build a Trading bot.
 
 ## 1. Resources
 ####  Covers: 
