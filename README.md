@@ -43,6 +43,12 @@ https://github.com/QAM-ATC/Algorithmic-Trading/tree/master/Technical%20Analysis%
 https://github.com/QAM-ATC/Algorithmic-Trading/tree/master/Performance%20Measurement%20%20-%20KPI
 
 ## 5. Backtesting strategies 
+#### Covers:
+1. How to perform periodic Portfolio Rebalancing 
+2. How to execute Intraday Resistance Breakout Signal Generation and Strategy
+
+https://github.com/QAM-ATC/Infrastructure/tree/master/Backtesting
+
 ## 6. Build Python Trading Bot 
 
 
