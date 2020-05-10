@@ -63,6 +63,8 @@ Additional Materials:
 [Click here to learn how to build a python trading bot](https://github.com/QAM-ATC/Infrastructure/tree/master/oanda_trading_bot)
 
 
+### 7. Remote Hosting and Scheduling 
+[Crontab](https://www.thegeekstuff.com/2009/06/15-practical-crontab-examples/)
 
 
 KIV:
