@@ -1,0 +1,13 @@
+.container{
+    display:flex;
+    justify-content: space-between;
+     }
+  
+  .left{
+    padding-left: 10%;
+  }
+  
+  
+  .right{
+    padding-right: 10%;
+  }

@@ -1,24 +1,33 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-reactapp/node_modules
-reactapp/.pnp
-reactapp/.pnp.js
-env
+investment Dashboard/reactapp/node_modules
+investment Dashboard/reactapp/.pnp
+investment Dashboard/reactapp/.pnp.js
+investment Dashboard/env
 
 # testing
-reactapp/coverage
+investment Dashboard/reactapp/coverage
 
 # production
-reactapp/build
+investment Dashboard/reactapp/build
 
 # misc
-reactapp/.DS_Store
-reactapp/.env.local
-reactapp/.env.development.local
-reactapp/.env.test.local
-reactapp/.env.production.local
+investment Dashboard/reactapp/.DS_Store
+investment Dashboard/reactapp/.env.local
+investment Dashboard/reactapp/.env.development.local
+investment Dashboard/reactapp/.env.test.local
+investment Dashboard/reactapp/.env.production.local
 
-reactapp/npm-debug.log*
-reactapp/yarn-debug.log*
-reactapp/yarn-error.log*
+investment Dashboard/reactapp/npm-debug.log*
+investment Dashboard/reactapp/yarn-debug.log*
+investment Dashboard/reactapp/yarn-error.log*
+infrastructure/bitmex_api.txt
+infrastructure/logs
+infrastructure/__pycache__/
+
+.ipynb_checkpoints
+.DS_Store
+.idea/
+
+*.pyc
